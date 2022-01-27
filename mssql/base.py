@@ -335,6 +335,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 conn = Database.connect(connstr,
                                         unicode_results=unicode_results,
                                         timeout=timeout)
+                conn.add_output_converter(-155, handle_datetimeoffset)
             except Exception as e:
                 for error_number in self._transient_error_numbers:
                     if error_number in e.args[1]:
@@ -636,3 +637,12 @@ class CursorWrapper(object):
 
     def __iter__(self):
         return iter(self.cursor)
+
+import struct
+from datetime import datetime, timedelta, timezone
+
+def handle_datetimeoffset(dto_value):
+    # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
+    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 0, -6, 0)
+    return datetime(tup[0], tup[1], tup[2], tup[3], tup[4], tup[5], tup[6] // 1000,
+                    timezone(timedelta(hours=tup[7], minutes=tup[8]))) 
