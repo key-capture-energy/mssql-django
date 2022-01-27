@@ -94,9 +94,12 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'PositiveIntegerField': 'int',
         'PositiveSmallIntegerField': 'smallint',
         'PositiveBigIntegerField' : 'bigint',
+        'PositiveTinyIntegerField': 'tinyint',
         'SlugField': 'nvarchar(%(max_length)s)',
         'SmallAutoField': 'smallint',
         'SmallIntegerField': 'smallint',
+        'TinyAutoField': 'tinyint IDENTITY (1, 1)',
+        'TinyIntegerField': 'tinyint',
         'TextField': 'nvarchar(max)',
         'TimeField': 'time',
         'UUIDField': 'char(32)',
@@ -111,6 +114,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'PositiveIntegerField': '[%(column)s] >= 0',
         'PositiveSmallIntegerField': '[%(column)s] >= 0',
         'PositiveBigIntegerField': '[%(column)s] >= 0',
+        'PositiveTinyIntegerField': '[%(column)s] >= 0',
     }
     operators = {
         # Since '=' is used not only for string comparision there is no way
