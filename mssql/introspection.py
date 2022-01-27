@@ -51,6 +51,16 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
 
     ignored_tables = []
 
+    def get_object_id(self, cursor, object_):
+        """
+        Returns the object id for a given database object.
+        """
+
+        sql = "SELECT OBJECT_ID('{}')".format(object_)
+        cursor.execute(sql)
+        results = cursor.fetchall()
+        return results[0][0] if len(results) > 0 else None
+
     def get_field_type(self, data_type, description):
         field_type = super().get_field_type(data_type, description)
         # the max nvarchar length is described as 0 or 2**30-1

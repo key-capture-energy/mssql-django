@@ -101,6 +101,8 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
     ]
     _sql_create_temporal_table_suffix = "WITH (SYSTEM_VERSIONING = ON %(hist_clause)s)"
     _sql_create_temporal_table_hist_clause = "(HISTORY_TABLE = %(hist_table)s)"
+    _sql_alter_table_disable_system_versioning = "ALTER TABLE %(table)s SET (SYSTEM_VERSIONING = OFF)"
+    _sql_alter_table_remove_versioning_columns = "ALTER TABLE %(table)s DROP PERIOD FOR SYSTEM_TIME"
 
     def _alter_column_default_sql(self, model, old_field, new_field, drop=False):
         """
@@ -119,7 +121,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             # SQL Server requires the name of the default constraint
             result = self.execute(
                 self._sql_select_default_constraint_name % {
-                    "table": self.quote_value(model._meta.db_table),
+                    "table": self.quote_value(model._meta.db_table.split('[')[-1]),
                     "column": self.quote_value(new_field.column),
                 },
                 has_result=True
@@ -754,7 +756,7 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         self.execute(sql, params)
         # Drop the default if we need to
         # (Django usually does not use in-database defaults)
-        if not self.skip_default(field) and self.effective_default(field) is not None:
+        if not (self.skip_default(field) or self.effective_default(field) is None):
             changes_sql, params = self._alter_column_default_sql(model, None, field, drop=True)
             sql = self.sql_alter_column % {
                 "table": self.quote_name(model._meta.db_table),
@@ -1060,6 +1062,44 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
         return self._delete_constraint_sql(sql, model, name)
 
     def delete_model(self, model):
+
+        tt_def = tokenize_tt(model._meta.verbose_name)
+        schema_name = None
+
+        if len(model._meta.db_table.split('].[')) > 1:
+            schema_name, _ = model._meta.db_table.split('].[')
+
+        if tt_def:
+            if tt_def['anonymous']:
+                with self.connection.cursor() as cursor:
+                    history_table = '{}MSSQL_TemporalHistoryFor_{}'.format(
+                        (schema_name + '].[' if schema_name else ''),
+                        self.connection.introspection.get_object_id(
+                            cursor,
+                            self.quote_name(model._meta.db_table)
+                        )
+                    )
+            else:
+                history_table = tt_def['hist_table']
+
+            self.execute(
+                self._sql_alter_table_disable_system_versioning % {
+                    "table": self.quote_name(model._meta.db_table)
+                }
+            )
+
+            self.execute(
+                self._sql_alter_table_remove_versioning_columns % {
+                    "table": self.quote_name(model._meta.db_table)
+                }
+            )
+
+            self.execute(
+                self.sql_delete_table % {
+                    "table": self.quote_name(history_table),
+                }
+            )
+
         super().delete_model(model)
 
     def execute(self, sql, params=(), has_result=False):
