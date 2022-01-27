@@ -13,9 +13,11 @@ from django.db.backends.base.schema import (
 from django.db.backends.ddl_references import (
     Columns,
     IndexName,
+    ForeignKeyName,
     Statement as DjStatement,
     Table,
 )
+from django.db.backends.utils import split_identifier
 from django import VERSION as django_version
 from django.db.models import Index, UniqueConstraint
 from django.db.models.fields import AutoField, BigAutoField
@@ -874,6 +876,23 @@ class DatabaseSchemaEditor(BaseDatabaseSchemaEditor):
             db_tablespace=db_tablespace, col_suffixes=col_suffixes, sql=sql,
             opclasses=opclasses, condition=condition,
         )
+    
+    # CUSTOM OVERRIDES BELONGING TO FORK
+
+    def _fk_constraint_name(self, model, field, suffix):
+        def create_fk_name(*args, **kwargs):
+            return self.quote_name(self._create_index_name(*args, **kwargs))
+
+        return ForeignKeyName(
+            model._meta.db_table.split('[')[-1],
+            [field.column],
+            split_identifier(field.target_field.model._meta.db_table.split('[')[-1])[1],
+            [field.target_field.column],
+            suffix,
+            create_fk_name,
+        )
+
+    # END CUSTOM OVERRIDES
 
     def create_model(self, model):
         """
