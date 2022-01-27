@@ -80,6 +80,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'CharField': 'nvarchar(%(max_length)s)',
         'DateField': 'date',
         'DateTimeField': 'datetime2',
+        'DateTimeOffsetField': 'datetimeoffset',
         'DecimalField': 'numeric(%(max_digits)s, %(decimal_places)s)',
         'DurationField': 'bigint',
         'FileField': 'nvarchar(%(max_length)s)',
@@ -237,6 +238,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 self.data_types['DateField'] = 'datetime'
                 self.data_types['DateTimeField'] = 'datetime'
                 self.data_types['TimeField'] = 'datetime'
+                self.data_types['DateTimeOffsetFields'] = 'datetime'
 
         return conn
 
