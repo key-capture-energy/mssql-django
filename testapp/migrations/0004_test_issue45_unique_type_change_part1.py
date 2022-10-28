@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
         ('testapp', '0003_test_unique_nullable_part2'),
     ]
 
-    # Prep test for issue https://github.com/ESSolutions/django-mssql-backend/issues/45
+    # Issue #45 test prep
     operations = [
         # for case 1:
         migrations.AddField(

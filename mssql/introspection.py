@@ -15,7 +15,7 @@ SQL_BIGAUTOFIELD = -777444
 SQL_SS_TIMESTAMPOFFSET = -155
 
 def get_schema_name():
-    return getattr(settings, 'SCHEMA_TO_INSPECT', 'SCHEMA_NAME()')
+    return getattr(settings, 'SCHEMA_TO_INSPECT', 'dbo')
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     # Map type codes to Django Field types.
@@ -78,7 +78,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         """
         Returns a list of table and view names in the current database.
         """
-        sql = f'SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = {get_schema_name()}'
+        sql = 'SELECT TABLE_NAME, TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = ' + "'" + get_schema_name() + "'"
         cursor.execute(sql)
         types = {'BASE TABLE': 't', 'VIEW': 'v'}
         return [TableInfo(row[0], types.get(row[1]))
@@ -198,7 +198,7 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
             schema_name, table_name = table_name.split('].[')
 
         key_columns = []
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT c.name AS column_name, rt.name AS referenced_table_name, rc.name AS referenced_column_name
             FROM sys.foreign_key_columns fk
             INNER JOIN sys.tables t ON t.object_id = fk.parent_object_id
@@ -233,7 +233,7 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
         constraints = {}
         # Loop over the key table, collecting things as constraints
         # This will get PKs, FKs, and uniques, but not CHECK
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT
                 kc.constraint_name,
                 kc.column_name,
@@ -287,20 +287,15 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
                 constraints[constraint] = {
                     "columns": [],
                     "primary_key": kind.lower() == "primary key",
-                    # In the sys.indexes table, primary key indexes have is_unique_constraint as false,
-                    # but is_unique as true.
                     "unique": kind.lower() in ["primary key", "unique"],
-                    "unique_constraint": kind.lower() == "unique",
                     "foreign_key": (ref_table, ref_column) if kind.lower() == "foreign key" else None,
                     "check": False,
-                    # Potentially misleading: primary key and unique constraints still have indexes attached to them.
-                    # Should probably be updated with the additional info from the sys.indexes table we fetch later on.
                     "index": False,
                 }
             # Record the details
             constraints[constraint]['columns'].append(column)
         # Now get CHECK constraint columns
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT kc.constraint_name, kc.column_name
             FROM INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE AS kc
             JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS AS c ON
@@ -319,7 +314,6 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
                     "columns": [],
                     "primary_key": False,
                     "unique": False,
-                    "unique_constraint": False,
                     "foreign_key": None,
                     "check": True,
                     "index": False,
@@ -327,11 +321,10 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
             # Record the details
             constraints[constraint]['columns'].append(column)
         # Now get indexes
-        cursor.execute(f"""
+        cursor.execute("""
             SELECT
                 i.name AS index_name,
                 i.is_unique,
-                i.is_unique_constraint,
                 i.is_primary_key,
                 i.type,
                 i.type_desc,
@@ -357,13 +350,12 @@ WHERE a.TABLE_SCHEMA = """ + "'" + (schema_name or 'SCHEMA_NAME()') + "'" + """ 
                 ic.index_column_id ASC
         """, [table_name])
         indexes = {}
-        for index, unique, unique_constraint, primary, type_, desc, order, column in cursor.fetchall():
+        for index, unique, primary, type_, desc, order, column in cursor.fetchall():
             if index not in indexes:
                 indexes[index] = {
                     "columns": [],
                     "primary_key": primary,
                     "unique": unique,
-                    "unique_constraint": unique_constraint,
                     "foreign_key": None,
                     "check": False,
                     "index": True,
